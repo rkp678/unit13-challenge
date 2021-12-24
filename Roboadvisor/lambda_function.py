@@ -29,34 +29,40 @@ def build_validation_result(is_valid, violated_slot, message_content):
 
 # I ADDED HERE #
 
-def validate_data(age, investmentAmount, intent_request):
+# Validate the Age and Investment amount of the user
+def validate_data(age, investment_amount, intent_request):
+    """
+    Validates the data provided by the user.
+    """
+    # Validate the retirement age based on the user's current age.
+    # An retirement age of 65 years is considered by default.
     if age is not None:
         age = parse_int(
             age
-        )
+        )  # Since parameters are strings it's important to cast values
         if age < 0:
             return build_validation_result(
                 False,
                 "age",
-                "Your age must be over 0, provide an age greater than zero.",
+                "Your age is invalid, can you provide an age greater than zero?"
             )
         elif age >= 65:
             return build_validation_result(
                 False,
                 "age",
-                "You should be less than 65 years old to use this service, please provide a different age.",
+                "The maximum age to contract this service is 64, "
+                "can you provide an age between 0 and 64 please?"
             )
-                    
-    if investmentAmount is not None:
-        investmentAmount = parse_int(investmentAmount)
-        if investmentAmount < 5000:
+    # Validate the investment amount, it should be >= 5000
+    if investment_amount is not None:
+        investment_amount = parse_int(investment_amount)
+        if investment_amount < 5000:
             return build_validation_result(
                 False,
                 "investmentAmount",
-                "You need at least $5,000 to use this service,"
-                "please provide an amount equal to or greater than $5,000.",
+                "The minimum investment amount is $5,000 USD, "
+                "could you please provide a greater amount?",
             )
-            
     return build_validation_result(True, None, None)
             
 # END OF MY ADDITIONS #
@@ -113,59 +119,10 @@ def close(session_attributes, fulfillment_state, message):
 
     return response
 
-
-### Intents Handlers ###
-def recommend_portfolio(intent_request):
-    """
-    Performs dialog management and fulfillment for recommending a portfolio.
-    """
-
-    first_name = get_slots(intent_request)["firstName"]
-    age = get_slots(intent_request)["age"]
-    investmentAmount = get_slots(intent_request)["investmentAmount"]
-    risk_level = get_slots(intent_request)["riskLevel"]
-    source = intent_request["invocationSource"]
-
-    if source == "DialogCodeHook":
-        # Perform basic validation on the supplied input slots.
-        # Use the elicitSlot dialog action to re-prompt
-        # for the first violation detected.
-
-        ### YOUR DATA VALIDATION CODE STARTS HERE ###
-        
-        # Gets all the slots
-        slots = get_slots(intent_request)
-
-        # Validates user's input using the validate_data function
-        validation_result = validate_data(age, investmentAmount, intent_request)
-
-        # If the data provided by the user is not valid,
-        # the elicitSlot dialog action is used to re-prompt for the first violation detected.
-        if not validation_result["isValid"]:
-            slots[validation_result["violatedSlot"]] = None  # Cleans invalid slot
-
-            # Returns an elicitSlot dialog to request new data for the invalid slot
-            return elicit_slot(
-                intent_request["sessionAttributes"],
-                intent_request["currentIntent"]["name"],
-                slots,
-                validation_result["violatedSlot"],
-                validation_result["message"],
-            )
-        
-        # My note: Why is there another return function below?  This was included in the homework template.      
-        ### YOUR DATA VALIDATION CODE ENDS HERE ###
-
-        # Fetch current session attibutes
-        output_session_attributes = intent_request["sessionAttributes"]
-
-        return delegate(output_session_attributes, get_slots(intent_request))
-
-    # Get the initial investment recommendation
-
-    ### YOUR FINAL INVESTMENT RECOMMENDATION CODE STARTS HERE ###
-    
 def get_investment_recommendation(risk_level):
+    """
+    Returns an initial investment recommendation based on the risk profile.
+    """
     risk_levels = {
         "none": "100% bonds (AGG), 0% equities (SPY)",
         "very low": "80% bonds (AGG), 20% equities (SPY)",
@@ -174,12 +131,44 @@ def get_investment_recommendation(risk_level):
         "high": "20% bonds (AGG), 80% equities (SPY)",
         "very high": "0% bonds (AGG), 100% equities (SPY)",
     }
-    
-    return risk_levels[risk_level.lower()]    
-    # My note: Why is there another return function below?  This was included in the homework template.     
+    return risk_levels[risk_level.lower()]
+
+### Intents Handlers ###
+
+def recommend_portfolio(intent_request):
+    """
+    Performs dialog management and fulfillment for recommending a portfolio.
+    """
+    first_name = get_slots(intent_request)["firstName"]
+    age = get_slots(intent_request)["age"]
+    investment_amount = get_slots(intent_request)["investmentAmount"]
+    risk_level = get_slots(intent_request)["riskLevel"]
+    source = intent_request["invocationSource"]
+    slots = get_slots(intent_request)
+    if source == "DialogCodeHook":
+        # Perform basic validation on the supplied input slots.
+        # Use the elicitSlot dialog action to re-prompt
+        # for the first violation detected.
+    ### YOUR DATA VALIDATION CODE STARTS HERE ###
+        age_validation = validate_data(age, investment_amount, intent_request)
+        if not age_validation['isValid']:
+            slots[age_validation['violatedSlot']] = None
+            return elicit_slot(
+                intent_request['sessionAttributes'],
+                intent_request['currentIntent']['name'],
+                slots,
+                age_validation['violatedSlot'],
+                age_validation['message'],
+                )
+        output_session_attributes = intent_request['sessionAttributes']
+        return delegate(output_session_attributes, get_slots(intent_request))
+
+    ### YOUR FINAL INVESTMENT RECOMMENDATION CODE STARTS HERE ###
+
+    initial_recommendation = get_investment_recommendation(risk_level)
+
     ### YOUR FINAL INVESTMENT RECOMMENDATION CODE ENDS HERE ###
 
-    # Return a message with the initial recommendation based on the risk level.
     return close(
         intent_request["sessionAttributes"],
         "Fulfilled",
